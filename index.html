@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>職員証ジェネレーター</title>
+    <style>
+        body {
+            font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+            text-align: center;
+            background: #f0f2f5;
+            padding: 20px;
+            color: #333;
+            margin: 0;
+        }
+        .container {
+            max-width: 680px;
+            margin: 0 auto;
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        input[type="text"], input[type="file"], select {
+            width: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .fixed-info {
+            background: #eef2f7;
+            padding: 10px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #444;
+            line-height: 1.5;
+        }
+
+        /* 調整スライダーエリア */
+        .controls-box {
+            background: #f8fafd;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 10px;
+            border: 1px solid #dce6f2;
+            display: none;
+        }
+        .slider-group {
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .slider-group:last-child {
+            margin-bottom: 0;
+        }
+        .slider-group label {
+            width: 32%;
+            margin: 0;
+            font-size: 12px;
+        }
+        .slider-group input {
+            width: 65%;
+        }
+
+        /* プレビューキャンバス（ドラッグ＆ホイール対応） */
+        .canvas-wrapper {
+            margin-top: 20px;
+            position: relative;
+        }
+        canvas {
+            width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+            cursor: grab;
+            touch-action: none;
+            display: block;
+        }
+        canvas:active {
+            cursor: grabbing;
+        }
+
+        button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 13px 24px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 15px;
+            width: 100%;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #218838;
+        }
+        .btn-small {
+            padding: 8px 14px;
+            font-size: 13px;
+            width: auto;
+            margin-top: 0;
+            background: #5a6268;
+            white-space: nowrap;
+        }
+        .btn-small:hover {
+            background: #444b50;
+        }
+
+        /* スマホ長押し・右クリック保存用の完成画像 */
+        .save-preview-area {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px dashed #ddd;
+        }
+        #previewImage {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 style="margin-top: 0; margin-bottom: 20px; font-size: 20px;">職員証作成ツール</h2>
+
+    <div class="form-group">
+        <label for="userPhoto">1. 顔写真のアップロード</label>
+        <input type="file" id="userPhoto" accept="image/*" onchange="loadUserPhoto(this)">
+
+        <div class="controls-box" id="controlsBox">
+            <p style="margin: 0 0 10px 0; font-size: 12px; font-weight: bold; color: #0066cc;">
+                💡 下のプレビュー上で直接「ドラッグして移動」「マウスホイールで拡大・縮小」できます
+            </p>
+            <div class="slider-group">
+                <label>大きさ (拡大・縮小)</label>
+                <input type="range" id="zoomSlider" min="10" max="300" value="100" oninput="updatePreview()">
+            </div>
+            <div class="slider-group">
+                <label>左右の位置</label>
+                <input type="range" id="xSlider" min="-400" max="400" value="0" oninput="updatePreview()">
+            </div>
+            <div class="slider-group">
+                <label>上下の位置</label>
+                <input type="range" id="ySlider" min="-400" max="400" value="0" oninput="updatePreview()">
+            </div>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label>職員番号 (8桁ランダム)</label>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="text" id="employeeId" readonly style="background: #eef2f7; font-weight: bold;" value="">
+            <button type="button" class="btn-small" onclick="generateEmployeeId()">🎲 再生成</button>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label>所属 (固定)</label>
+        <div class="fixed-info">特殊清掃 こしかけ ／ N市中央事業所</div>
+    </div>
+
+    <div class="form-group">
+        <label for="userRole">2. 役職 (区分)</label>
+        <select id="userRole" onchange="updatePreview()">
+            <option value="社員">社員</option>
+            <option value="アルバイト">アルバイト</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="userName">3. 氏名</label>
+        <input type="text" id="userName" placeholder="クライン 太郎" oninput="updatePreview()">
+    </div>
+
+    <!-- インタラクティブ操作用キャンバス (1440×900) -->
+    <div class="canvas-wrapper">
+        <p style="margin: 0 0 8px 0; font-size: 13px; color: #666; font-weight: bold;">▼ プレビュー（写真部分をドラッグ・ホイール操作可能）</p>
+        <canvas id="idCanvas" width="1440" height="900"></canvas>
+    </div>
+
+    <button type="button" onclick="downloadCard()">画像をダウンロード</button>
+
+    <!-- スマホ長押し保存・右クリック保存用のイメージ表示 -->
+    <div class="save-preview-area">
+        <p style="margin: 0 0 8px 0; font-size: 12px; color: #666;">📱 スマホ等で長押し保存する場合はこちらの画像をご利用ください</p>
+        <img id="previewImage" alt="完成イメージ">
+    </div>
+</div>
+
+<script>
+const FRAME_IMAGE_URL = 'https://i.imgur.com/MgB288v.png';
+let bgImage = null;
+let bgLoaded = false;
+let userImage = null;
+
+// ドラッグ操作用の変数
+let isDragging = false;
+let startX = 0;
+let startY = 0;
+
+// 背景画像の読み込み
+function loadBackgroundImage() {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function() {
+        bgImage = img;
+        bgLoaded = true;
+        updatePreview();
+    };
+    img.onerror = function() {
+        bgLoaded = false;
+        updatePreview();
+    };
+    img.src = FRAME_IMAGE_URL;
+}
+
+// 8桁のランダム職員番号を生成
+function generateEmployeeId() {
+    const randomNum = Math.floor(10000000 + Math.random() * 90000000);
+    document.getElementById('employeeId').value = String(randomNum);
+    updatePreview();
+}
+
+// 字間（レタースペーシング）を指定してテキストを描画するヘルパー
+function drawSpacedText(ctx, text, x, y, spacing) {
+    let currentX = x;
+    for (let i = 0; i < text.length; i++) {
+        ctx.fillText(text[i], currentX, y);
+        currentX += ctx.measureText(text[i]).width + spacing;
+    }
+}
+
+// ユーザーが顔写真を選択した時の処理
+function loadUserPhoto(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            userImage = new Image();
+            userImage.onload = function() {
+                document.getElementById('zoomSlider').value = 100;
+                document.getElementById('xSlider').value = 0;
+                document.getElementById('ySlider').value = 0;
+                document.getElementById('controlsBox').style.display = 'block';
+                updatePreview();
+            };
+            userImage.src = e.target.result;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+// マウスドラッグ＆ホイール操作とタッチ操作の初期化
+function initCanvasEvents() {
+    const canvas = document.getElementById('idCanvas');
+
+    const startDrag = (clientX, clientY) => {
+        if (!userImage) return;
+        isDragging = true;
+        startX = clientX;
+        startY = clientY;
+    };
+
+    const moveDrag = (clientX, clientY) => {
+        if (!isDragging || !userImage) return;
+        const dx = clientX - startX;
+        const dy = clientY - startY;
+        startX = clientX;
+        startY = clientY;
+
+        const xSlider = document.getElementById('xSlider');
+        const ySlider = document.getElementById('ySlider');
+
+        const rect = canvas.getBoundingClientRect();
+        const scale = canvas.width / rect.width;
+
+        let newX = parseFloat(xSlider.value) + (dx * scale);
+        let newY = parseFloat(ySlider.value) + (dy * scale);
+
+        newX = Math.max(parseInt(xSlider.min), Math.min(parseInt(xSlider.max), newX));
+        newY = Math.max(parseInt(ySlider.min), Math.min(parseInt(ySlider.max), newY));
+
+        xSlider.value = Math.round(newX);
+        ySlider.value = Math.round(newY);
+
+        updatePreview();
+    };
+
+    canvas.addEventListener('mousedown', (e) => startDrag(e.clientX, e.clientY));
+    window.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY));
+    window.addEventListener('mouseup', () => { isDragging = false; });
+
+    canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) startDrag(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+    window.addEventListener('touchmove', (e) => {
+        if (isDragging && e.touches.length === 1) moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+    window.addEventListener('touchend', () => { isDragging = false; });
+
+    // マウスホイールで拡大・縮小
+    canvas.addEventListener('wheel', (e) => {
+        if (!userImage) return;
+        e.preventDefault();
+
+        const zoomSlider = document.getElementById('zoomSlider');
+        let currentZoom = parseInt(zoomSlider.value);
+        currentZoom += (e.deltaY < 0) ? 5 : -5;
+        currentZoom = Math.max(parseInt(zoomSlider.min), Math.min(parseInt(zoomSlider.max), currentZoom));
+        zoomSlider.value = currentZoom;
+
+        updatePreview();
+    }, { passive: false });
+}
+
+// キャンバスの描画とプレビュー更新
+function updatePreview() {
+    const canvas = document.getElementById('idCanvas');
+    const ctx = canvas.getContext('2d');
+    const fontStack = '"Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif';
+
+    const name = document.getElementById('userName').value || "クライン 太郎";
+    const role = document.getElementById('userRole').value;
+    const empId = document.getElementById('employeeId').value;
+
+    // 1. キャンバスをクリアして背景画像を描画
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (bgLoaded && bgImage) {
+        ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+    } else {
+        // 万が一背景画像が読み込めない環境用のフォールバック背景
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#3b7373";
+        ctx.fillRect(0, 0, canvas.width, 133);
+        ctx.fillStyle = "#a8d5bc";
+        ctx.font = `bold 58px ${fontStack}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("職 員 証", canvas.width / 2, 78);
+    }
+
+    // 2. 顔写真エリア（x: 68, y: 205, w: 393, h: 491）の青背景塗りつぶし＆写真合成
+    const targetX = 68;
+    const targetY = 205;
+    const targetW = 393;
+    const targetH = 491;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(targetX, targetY, targetW, targetH);
+    ctx.clip();
+
+    // 写真枠の背景を青（#42b4e6）で固定塗りつぶし
+    ctx.fillStyle = "#42b4e6";
+    ctx.fillRect(targetX, targetY, targetW, targetH);
+
+    // 顔写真の描画
+    if (userImage) {
+        const zoom = document.getElementById('zoomSlider').value / 100;
+        const moveX = parseInt(document.getElementById('xSlider').value);
+        const moveY = parseInt(document.getElementById('ySlider').value);
+
+        let drawW = targetW;
+        let drawH = targetW * (userImage.height / userImage.width);
+
+        if (drawH < targetH) {
+            drawH = targetH;
+            drawW = targetH * (userImage.width / userImage.height);
+        }
+
+        drawW *= zoom;
+        drawH *= zoom;
+
+        const finalX = targetX + (targetW - drawW) / 2 + moveX;
+        const finalY = targetY + (targetH - drawH) / 2 + moveY;
+
+        ctx.drawImage(userImage, finalX, finalY, drawW, drawH);
+    }
+    ctx.restore();
+
+    // 3. テキスト描画（背景画像の「職員番号」「役職」「氏名」の横座標に配置）
+    ctx.fillStyle = "#1a1a1a";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+
+    const valX = 865;
+
+    // 職員番号 (y: 230)
+    ctx.font = `500 36px ${fontStack}`;
+    drawSpacedText(ctx, empId, valX, 230, 3);
+
+    // 役職 (y: 438)
+    ctx.font = `500 38px ${fontStack}`;
+    drawSpacedText(ctx, role, valX, 438, 3);
+
+    // 氏名 (y: 574)
+    ctx.font = `bold 44px ${fontStack}`;
+    drawSpacedText(ctx, name, valX, 574, 3);
+
+    // 4. 完成イメージ（<img>タグ）の同期更新
+    try {
+        const dataUrl = canvas.toDataURL('image/png');
+        const previewImg = document.getElementById('previewImage');
+        previewImg.src = dataUrl;
+    } catch (e) {
+        console.warn('Canvas export error:', e);
+    }
+}
+
+// 画像ダウンロード処理
+function downloadCard() {
+    const canvas = document.getElementById('idCanvas');
+    const name = document.getElementById('userName').value || "クライン 太郎";
+    const link = document.createElement('a');
+    link.download = `職員証_${name}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+}
+
+window.onload = function() {
+    generateEmployeeId();
+    initCanvasEvents();
+    loadBackgroundImage();
+};
+</script>
+
+</body>
+</html>
