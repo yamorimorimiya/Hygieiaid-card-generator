@@ -94,20 +94,48 @@
             cursor: grabbing;
         }
 
-        button {
-            background: #28a745;
+        /* ボタン群 */
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 18px;
+        }
+        button, .btn-link {
             color: white;
             border: none;
             padding: 13px 24px;
             font-size: 16px;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
-            margin-top: 15px;
             width: 100%;
             font-weight: bold;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-sizing: border-box;
+            transition: background 0.2s;
         }
-        button:hover {
+        .btn-download {
+            background: #28a745;
+        }
+        .btn-download:hover {
             background: #218838;
+        }
+        .btn-x {
+            background: #0f1419;
+        }
+        .btn-x:hover {
+            background: #272c30;
+        }
+        .btn-share-img {
+            background: #1d9bf0;
+            display: none; /* Web Share API対応環境のみ表示 */
+        }
+        .btn-share-img:hover {
+            background: #1a8cd8;
         }
         .btn-small {
             padding: 8px 14px;
@@ -119,6 +147,13 @@
         }
         .btn-small:hover {
             background: #444b50;
+        }
+
+        .share-note {
+            font-size: 12px;
+            color: #666;
+            margin: 4px 0 0 0;
+            line-height: 1.5;
         }
 
         /* スマホ長押し・右クリック保存用の完成画像 */
@@ -195,7 +230,25 @@
         <canvas id="idCanvas" width="1440" height="900"></canvas>
     </div>
 
-    <button type="button" onclick="downloadCard()">画像をダウンロード</button>
+    <!-- 保存＆X共有ボタンエリア -->
+    <div class="action-buttons">
+        <button type="button" class="btn-download" onclick="downloadCard()">
+            📥 STEP 1：画像をダウンロード保存
+        </button>
+
+        <button type="button" class="btn-x" onclick="shareOnX()">
+            <span style="font-size: 18px;">𝕏</span> STEP 2：タグ付きでXにポストする
+        </button>
+
+        <button type="button" id="nativeShareBtn" class="btn-share-img" onclick="shareWithImage()">
+            📤 スマホで画像ごと直接シェアする
+        </button>
+
+        <p class="share-note">
+            ※Xのポスト画面が開いたら、保存した職員証画像を添付して投稿してください。<br>
+            （自動付与タグ：<strong>#ヒュギエイアの煩悶 #こしかけ職員</strong>）
+        </p>
+    </div>
 
     <!-- スマホ長押し保存・右クリック保存用のイメージ表示 -->
     <div class="save-preview-area">
@@ -345,7 +398,6 @@ function updatePreview() {
     if (bgLoaded && bgImage) {
         ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
     } else {
-        // 万が一背景画像が読み込めない環境用のフォールバック背景
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = "#3b7373";
@@ -396,7 +448,7 @@ function updatePreview() {
     }
     ctx.restore();
 
-    // 3. テキスト描画（背景画像の「職員番号」「役職」「氏名」の横座標に配置）
+    // 3. テキスト描画
     ctx.fillStyle = "#1a1a1a";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
@@ -435,10 +487,64 @@ function downloadCard() {
     link.click();
 }
 
+// X (旧Twitter) 投稿画面を開く処理（ハッシュタグ自動付与）
+function shareOnX() {
+    const name = document.getElementById('userName').value || "クライン 太郎";
+    const role = document.getElementById('userRole').value;
+    const empId = document.getElementById('employeeId').value;
+
+    // 投稿本文とハッシュタグの組み立て
+    const postText = `特殊清掃 こしかけ（N市中央事業所）の職員証を発行しました！\n職員番号：${empId}\n役職：${role}\n氏名：${name}\n#ヒュギエイアの煩悶 #こしかけ職員`;
+
+    // 公開サイトのURL（ローカル環境でない場合は現在のURLを自動取得）
+    const shareUrl = window.location.href.startsWith('http') ? window.location.href : '';
+
+    const intentUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(postText)}${shareUrl ? '&url=' + encodeURIComponent(shareUrl) : ''}`;
+    window.open(intentUrl, '_blank', 'noopener,noreferrer');
+}
+
+// スマホ向け：画像ファイルごとOS標準シェア（Xアプリ等へ直接添付可能）
+async function shareWithImage() {
+    const canvas = document.getElementById('idCanvas');
+    const name = document.getElementById('userName').value || "クライン 太郎";
+    const role = document.getElementById('userRole').value;
+    const empId = document.getElementById('employeeId').value;
+
+    const postText = `特殊清掃 こしかけ（N市中央事業所）の職員証を発行しました！\n職員番号：${empId}\n役職：${role}\n氏名：${name}\n#ヒュギエイアの煩悶 #こしかけ職員`;
+
+    canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        const file = new File([blob], `職員証_${name}.png`, { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({
+                    text: postText,
+                    files: [file]
+                });
+            } catch (err) {
+                console.log('Share canceled or failed:', err);
+            }
+        } else {
+            shareOnX();
+        }
+    }, 'image/png');
+}
+
+// Web Share API（ファイル共有）対応端末かチェックしてボタン表示
+function checkNativeShareSupport() {
+    if (navigator.canShare) {
+        const dummyFile = new File([""], "test.png", { type: "image/png" });
+        if (navigator.canShare({ files: [dummyFile] })) {
+            document.getElementById('nativeShareBtn').style.display = 'inline-flex';
+        }
+    }
+}
+
 window.onload = function() {
     generateEmployeeId();
     initCanvasEvents();
     loadBackgroundImage();
+    checkNativeShareSupport();
 };
 </script>
 
